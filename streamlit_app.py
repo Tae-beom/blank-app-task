@@ -12,7 +12,7 @@ def sigma_t(S, T):
     return rho - 1000  # σₜ 값 반환 (밀도-1000)
 
 # Streamlit 앱 제목
-st.title("T-S Diagram with Isopycnals")
+st.title("T-S Diagram")
 
 # 사용 방법 안내 (한글)
 st.subheader("사용 방법")
