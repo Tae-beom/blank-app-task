@@ -3,67 +3,71 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import numpy as np
 
-# 밀도 계산을 위한 함수 (σ_t)
-# UNESCO (1983) 식을 간단화한 근사식
+# σₜ (밀도 이상) 계산 함수
+# 염분(S, PSU)과 수온(T, °C)으로 σₜ 값을 계산
+# 해양학에서 사용되는 밀도 공식(UNESCO 1983)을 단순화한 버전
 def sigma_t(S, T):
-    """
-    염분(S, ‰)과 수온(T, °C)으로부터 σ_t(kg/m^3-1000) 계산
-    """
-    # 순수한 물의 밀도 (25°C 기준) 근사
     rho_w = 999.842594 + 6.793952e-2*T - 9.095290e-3*T**2 + 1.001685e-4*T**3
-    # 염분 보정 (단순화된 다항식)
     rho = rho_w + 0.824493*S - 0.0040899*T*S + 0.000076438*T**2*S
-    return rho - 1000  # σ_t (1000을 빼서 해양학 표기)
+    return rho - 1000  # σₜ 값 반환 (밀도-1000)
 
-# Streamlit 제목
-st.title("수온-염분도(T-S Diagram) 그리기 (등밀도선 포함)")
+# Streamlit 앱 제목
+st.title("T-S Diagram with Isopycnals")
 
-# 사용법 안내
+# 사용 방법 안내 (한글)
 st.subheader("사용 방법")
 st.write("1. CSV 파일을 업로드합니다.")
-st.write("2. CSV에는 'Depth', 'Temperature', 'Salinity' 열이 있어야 합니다.")
-st.write("3. 수심별로 연결된 T-S 다이어그램과 등밀도선이 표시됩니다.")
+st.write("2. CSV에는 'Depth', 'Temperature', 'Salinity' 열이 있어야 합니다. (대소문자 무관)")
+st.write("3. 업로드 후, 수심별로 연결된 T-S 다이어그램과 등밀도선이 표시됩니다.")
 
-# CSV 업로드
-uploaded_file = st.file_uploader("CSV 파일 입력 :", type=["csv"])
+# CSV 파일 업로드
+uploaded_file = st.file_uploader("CSV 파일 업로드:", type=["csv"])
 
 if uploaded_file is not None:
-    # 데이터 읽기
     df = pd.read_csv(uploaded_file)
 
-    # 열 확인
-    if all(col in df.columns for col in ['Depth', 'Temperature', 'Salinity']):
-        df = df.sort_values(by="Depth")  # 깊이 순 정렬
+    # 열 이름을 모두 소문자로 변환하여 대소문자 문제 해결
+    df.columns = [c.strip().lower() for c in df.columns]
 
-        # T-S 범위 정의 (등밀도선 계산용)
-        S_range = np.linspace(df['Salinity'].min()-0.5, df['Salinity'].max()+0.5, 100)
-        T_range = np.linspace(df['Temperature'].min()-1, df['Temperature'].max()+1, 100)
+    # 필수 열이 있는지 확인
+    if all(col in df.columns for col in ['depth', 'temperature', 'salinity']):
+        # 깊이 기준으로 데이터 정렬 (깊이에 따라 순서대로 연결되도록)
+        df = df.sort_values(by='depth')
+
+        # 등밀도선(σₜ) 계산을 위한 격자 생성
+        S_range = np.linspace(df['salinity'].min()-0.5, df['salinity'].max()+0.5, 100)
+        T_range = np.linspace(df['temperature'].min()-1, df['temperature'].max()+1, 100)
         S_grid, T_grid = np.meshgrid(S_range, T_range)
         sigma_grid = sigma_t(S_grid, T_grid)
 
-        # Matplotlib 그래프 생성
-        fig, ax = plt.subplots(figsize=(7,6))
+        # Matplotlib으로 그래프 생성
+        fig, ax = plt.subplots(figsize=(7, 6))
 
-        # 등밀도선(σ_t) 그리기
-        cs = ax.contour(S_grid, T_grid, sigma_grid, levels=np.arange(20, 30, 0.5), colors='gray', alpha=0.5)
+        # 등밀도선 그리기 (회색 선)
+        cs = ax.contour(S_grid, T_grid, sigma_grid,
+                        levels=np.arange(20, 30, 0.5),
+                        colors='gray', alpha=0.5)
         ax.clabel(cs, fmt="%.1f", fontsize=8)
 
-        # 데이터 점과 선
-        ax.plot(df['Salinity'], df['Temperature'], '-o', color='b', label="Profile")
-        for i, row in df.iterrows():
-            ax.text(row['Salinity'], row['Temperature'], f"{int(row['Depth'])}m", fontsize=8)
+        # 수심별 데이터 점과 연결선 표시
+        ax.plot(df['salinity'], df['temperature'], '-o', color='b', label="Profile")
 
-        # 축, 제목 설정
-        ax.set_title("T-S Diagram (등밀도선 포함)")
-        ax.set_xlabel("염분 (Salinity, ‰)")
-        ax.set_ylabel("수온 (Temperature, °C)")
-        ax.invert_yaxis()  # 수온 깊이감 표현을 위해 Y축 반전
+        # 각 점에 수심 레이블 추가
+        for _, row in df.iterrows():
+            ax.text(row['salinity'], row['temperature'], f"{int(row['depth'])}m", fontsize=8)
+
+        # 그래프 제목과 축 레이블 (영어로 표시)
+        ax.set_title("Temperature-Salinity (T-S) Diagram with Isopycnals")
+        ax.set_xlabel("Salinity (PSU)")
+        ax.set_ylabel("Temperature (°C)")
+
+        # Y축을 뒤집지 않음 (위쪽이 높은 수온, 아래쪽이 낮은 수온)
         ax.grid(True)
         ax.legend()
 
-        # 그래프 출력
+        # Streamlit에 그래프 출력
         st.pyplot(fig)
     else:
-        st.error("CSV 파일에 'Depth', 'Temperature', 'Salinity' 열이 있어야 합니다.")
+        st.error("CSV 파일에 'Depth', 'Temperature', 'Salinity' 열이 필요합니다. (대소문자 무관)")
 else:
     st.info("CSV 파일을 업로드하면 T-S 다이어그램이 표시됩니다.")
