@@ -17,7 +17,7 @@ st.title("T-S Diagram")
 # 사용 방법 안내 (한글)
 st.subheader("사용 방법")
 st.write("1. CSV 파일을 업로드합니다.")
-st.write("2. CSV에는 'Depth', 'Temperature', 'Salinity' 열이 있어야 합니다. (대소문자 무관)")
+st.write("2. CSV에는 'Depth', 'Temperature', 'Salinity' 열이 있어야 합니다.")
 st.write("3. 업로드 후, 수심별로 연결된 T-S 다이어그램과 등밀도선이 표시됩니다.")
 
 # CSV 파일 업로드
