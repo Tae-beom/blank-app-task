@@ -1,73 +1,104 @@
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.font_manager as fm
 import numpy as np
+import itertools
+import os
 
-# σₜ (밀도 이상) 계산 함수
-# 염분(S, PSU)과 수온(T, °C)으로 σₜ 값을 계산
-# 해양학에서 사용되는 밀도 공식(UNESCO 1983)을 단순화한 버전
-def sigma_t(S, T):
-    rho_w = 999.842594 + 6.793952e-2*T - 9.095290e-3*T**2 + 1.001685e-4*T**3
-    rho = rho_w + 0.824493*S - 0.0040899*T*S + 0.000076438*T**2*S
-    return rho - 1000  # σₜ 값 반환 (밀도-1000)
-
-# Streamlit 앱 제목
-st.title("T-S Diagram")
-
-# 사용 방법 안내 (한글)
-st.subheader("사용 방법")
-st.write("1. CSV 파일을 업로드합니다.")
-st.write("2. CSV에는 'Depth', 'Temperature', 'Salinity' 열이 있어야 합니다.")
-st.write("3. 업로드 후, 수심별로 연결된 T-S 다이어그램과 등밀도선이 표시됩니다.")
-
-# CSV 파일 업로드
-uploaded_file = st.file_uploader("CSV 파일 업로드:", type=["csv"])
-
-if uploaded_file is not None:
-    df = pd.read_csv(uploaded_file)
-
-    # 열 이름을 모두 소문자로 변환하여 대소문자 문제 해결
-    df.columns = [c.strip().lower() for c in df.columns]
-
-    # 필수 열이 있는지 확인
-    if all(col in df.columns for col in ['depth', 'temperature', 'salinity']):
-        # 깊이 기준으로 데이터 정렬 (깊이에 따라 순서대로 연결되도록)
-        df = df.sort_values(by='depth')
-
-        # 등밀도선(σₜ) 계산을 위한 격자 생성
-        S_range = np.linspace(df['salinity'].min()-0.5, df['salinity'].max()+0.5, 100)
-        T_range = np.linspace(df['temperature'].min()-1, df['temperature'].max()+1, 100)
-        S_grid, T_grid = np.meshgrid(S_range, T_range)
-        sigma_grid = sigma_t(S_grid, T_grid)
-
-        # Matplotlib으로 그래프 생성
-        fig, ax = plt.subplots(figsize=(7, 6))
-
-        # 등밀도선 그리기 (회색 선)
-        cs = ax.contour(S_grid, T_grid, sigma_grid,
-                        levels=np.arange(20, 30, 0.5),
-                        colors='gray', alpha=0.5)
-        ax.clabel(cs, fmt="%.1f", fontsize=8)
-
-        # 수심별 데이터 점과 연결선 표시
-        ax.plot(df['salinity'], df['temperature'], '-o', color='b', label="Profile")
-
-        # 각 점에 수심 레이블 추가
-        for _, row in df.iterrows():
-            ax.text(row['salinity'], row['temperature'], f"{int(row['depth'])}m", fontsize=8)
-
-        # 그래프 제목과 축 레이블 (영어로 표시)
-        ax.set_title("Temperature-Salinity (T-S) Diagram with Isopycnals")
-        ax.set_xlabel("Salinity (PSU)")
-        ax.set_ylabel("Temperature (°C)")
-
-        # Y축을 뒤집지 않음 (위쪽이 높은 수온, 아래쪽이 낮은 수온)
-        ax.grid(True)
-        ax.legend()
-
-        # Streamlit에 그래프 출력
-        st.pyplot(fig)
-    else:
-        st.error("CSV 파일에 'Depth', 'Temperature', 'Salinity' 열이 필요합니다. (대소문자 무관)")
+# 📌 NanumGothic 폰트 설정
+FONT_PATH = os.path.join("font", "NanumGothic.ttf")
+if os.path.exists(FONT_PATH):
+    nanum_font = fm.FontProperties(fname=FONT_PATH)
+    plt.rcParams['font.family'] = nanum_font.get_name()  # 전역 설정만 사용
 else:
-    st.info("CSV 파일을 업로드하면 T-S 다이어그램이 표시됩니다.")
+    nanum_font = None
+    st.warning("한글 폰트 파일(font/NanumGothic.ttf)을 찾을 수 없습니다. 일부 글자가 깨질 수 있습니다.")
+
+# 해수 밀도 계산 함수 (ρ, kg/m³)
+def seawater_density(S, T):
+    rho_w = 999.842594 + 6.793952e-2 * T - 9.095290e-3 * T**2 + 1.001685e-4 * T**3
+    rho = rho_w + 0.824493 * S - 0.0040899 * T * S + 0.000076438 * T**2 * S
+    return rho
+
+# 📊 Streamlit 앱
+st.title("수온-염분도 (T-S Diagram)")
+
+st.subheader("사용 방법")
+st.markdown("""
+1. 여러 개의 CSV 파일을 업로드하세요.  
+2. 각 파일에는 `Depth`, `Temperature`, `Salinity` 열이 있어야 합니다. (대소문자 무관)
+""")
+
+uploaded_files = st.file_uploader("CSV 파일 업로드", type=["csv"], accept_multiple_files=True)
+
+if uploaded_files:
+    data_list = []
+
+    for file in uploaded_files:
+        try:
+            df = pd.read_csv(file)
+            column_mapping = {col.strip().lower(): col for col in df.columns}
+            required = ['depth', 'temperature', 'salinity']
+
+            if all(key in column_mapping for key in required):
+                depth_col = column_mapping['depth']
+                temp_col = column_mapping['temperature']
+                sal_col = column_mapping['salinity']
+
+                df = df[[depth_col, temp_col, sal_col]].rename(columns={
+                    depth_col: 'depth',
+                    temp_col: 'temperature',
+                    sal_col: 'salinity'
+                })
+                df = df.sort_values(by='depth')
+                data_list.append((file.name, df))
+            else:
+                st.warning(f"'{file.name}' 파일에는 'Depth', 'Temperature', 'Salinity' 열이 모두 있어야 합니다.")
+        except Exception as e:
+            st.error(f"'{file.name}' 읽기 실패: {e}")
+
+    if data_list:
+        all_sal = pd.concat([df['salinity'] for _, df in data_list])
+        all_temp = pd.concat([df['temperature'] for _, df in data_list])
+
+        S_range = np.linspace(all_sal.min() - 0.5, all_sal.max() + 0.5, 100)
+        T_range = np.linspace(all_temp.min() - 1, all_temp.max() + 1, 100)
+        S_grid, T_grid = np.meshgrid(S_range, T_range)
+
+        rho_grid = seawater_density(S_grid, T_grid)
+        sg_grid = rho_grid / 1000  # 비중
+
+        min_sg = np.floor(sg_grid.min() * 1000) / 1000
+        max_sg = np.ceil(sg_grid.max() * 1000) / 1000
+        levels = np.arange(min_sg, max_sg + 0.001, 0.001)
+
+        fig, ax = plt.subplots(figsize=(8, 6))
+
+        # 등비중선 등고선
+        cs = ax.contour(S_grid, T_grid, sg_grid,
+                        levels=levels,
+                        colors='gray', alpha=0.5)
+        ax.clabel(cs, fmt="%.3f", fontsize=8)  # ❗ fontproperties 넣지 마!
+
+        color_cycle = itertools.cycle(plt.rcParams['axes.prop_cycle'].by_key()['color'])
+
+        for filename, df in data_list:
+            color = next(color_cycle)
+            ax.plot(df['salinity'], df['temperature'], '-o', label=filename, color=color)
+
+            for _, row in df.iterrows():
+                ax.text(row['salinity'], row['temperature'],
+                        f"{int(row['depth'])}m",
+                        fontsize=8, color=color,
+                        fontproperties=nanum_font)
+
+        ax.set_title("수온-염분도", fontproperties=nanum_font)
+        ax.set_xlabel("염분 (PSU)", fontproperties=nanum_font)
+        ax.set_ylabel("수온 (°C)", fontproperties=nanum_font)
+        ax.grid(True)
+        ax.legend(prop=nanum_font)
+
+        st.pyplot(fig)
+else:
+    st.info("CSV 파일을 업로드하면 다중 T-S 다이어그램이 표시됩니다.")
