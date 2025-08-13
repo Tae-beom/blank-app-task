@@ -24,12 +24,13 @@ def seawater_density(S, T):
 # 📊 Streamlit 앱
 st.title("수온-염분도 (T-S Diagram)")
 
-st.subheader("사용 방법")
 st.markdown("""
-1. 해양자료센터에서 받은 파일에서 깊이, 수온, 염분 자료만을 복사하여 CSV 파일 만듭니다.  
-2. 제작된 파을을 업로드하세요. 여러 파일을 업로드하여 비교도 가능합니다.
-""")
+#### 사용 방법
 
+1. 해양자료센터에서 받은 파일에서 **깊이(Depth)**, **수온(Temperature)**, **염분(Salinity)** 자료만을 복사하여 CSV 파일을 만듭니다.  
+   (열 이름은 `Depth`, `Temperature`, `Salinity`로 지정하며, **대소문자는 무관**합니다.)  
+2. 제작된 파일을 업로드하세요. **여러 파일을 동시에 업로드하여 비교**도 가능합니다.
+""")
 uploaded_files = st.file_uploader("CSV 파일 업로드", type=["csv"], accept_multiple_files=True)
 
 if uploaded_files:
