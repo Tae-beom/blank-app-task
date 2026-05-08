@@ -92,7 +92,7 @@ if uploaded_files:
                  ax.annotate(
                      f"{int(row['depth'])}m",
                      xy=(row['salinity'], row['temperature']),   # 점의 위치
-                      xytext=(6, 6),                              # 점에서 오른쪽 6pt, 위쪽 6pt 이동
+                      xytext=(6, 2),                              # 점에서 오른쪽 6pt, 위쪽 6pt 이동
                      textcoords='offset points',                 # 픽셀(포인트) 기준 오프셋
                      fontsize=8, color=color,
                      fontproperties=nanum_font
