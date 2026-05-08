@@ -89,10 +89,14 @@ if uploaded_files:
             ax.plot(df['salinity'], df['temperature'], '-o', label=filename, color=color)
 
             for _, row in df.iterrows():
-                ax.text(row['salinity'], row['temperature'],
-                        f"{int(row['depth'])}m",
-                        fontsize=8, color=color,
-                        fontproperties=nanum_font)
+                 ax.annotate(
+                     f"{int(row['depth'])}m",
+                     xy=(row['salinity'], row['temperature']),   # 점의 위치
+                      xytext=(6, 6),                              # 점에서 오른쪽 6pt, 위쪽 6pt 이동
+                     textcoords='offset points',                 # 픽셀(포인트) 기준 오프셋
+                     fontsize=8, color=color,
+                     fontproperties=nanum_font
+                  )
 
         ax.set_title("수온-염분도", fontproperties=nanum_font)
         ax.set_xlabel("염분 (PSU)", fontproperties=nanum_font)
